@@ -1,0 +1,27 @@
+# Per-bot working dirs, generated inis, logs, caches
+/runtime/
+
+# MCC auto-generates this in the cwd on first run if no ini path is given
+/MinecraftClient.ini
+
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
+.uv/
+uv.lock
+*.egg-info/
+dist/
+build/
+
+# Claude Code local settings (machine-specific permissions)
+.claude/settings.local.json
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Env files (server creds, tokens)
+.env
+.env.*
