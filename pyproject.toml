@@ -1,5 +1,5 @@
 [project]
-name = "mcc-mcp-wrapper"
+name = "mcc-fleet"
 version = "0.1.0"
 description = "MCP server that manages a fleet of Minecraft Console Client (MCC) instances and proxies their tools."
 readme = "README.md"
