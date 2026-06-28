@@ -15,9 +15,9 @@ Targets **offline-mode** servers (login by nick, no Microsoft auth) and MCC v26.
 ## How it works
 
 ```
-Claude ──stdio──▶ mcc-fleet (this wrapper) ──HTTP /mcp──▶ mcc (Bot1)
-                                            ──HTTP /mcp──▶ mcc (Bot2)
-                                            ...
+Claude -- stdio --> mcc-fleet (this wrapper) -- HTTP /mcp --> mcc (Bot1)
+                                             -- HTTP /mcp --> mcc (Bot2)
+                                             ...
 ```
 
 Each bot's MCC config is rendered from `mcc-template.ini` into `runtime/<nick>/MinecraftClient.ini`.
@@ -34,21 +34,64 @@ polls it until ready.
 | `bot_call(nick, tool, arguments)` | Invoke one of a bot's in-game tools |
 | `stop_bot(nick)` / `stop_all()` | Disconnect/terminate bot(s) |
 
-## Setup
+## Dependencies
 
-```bash
-uv sync
-```
+| Dependency | Why | Version |
+|---|---|---|
+| [Python](https://www.python.org/) | Runs the wrapper | 3.12+ |
+| [uv](https://docs.astral.sh/uv/getting-started/installation/) | Installs Python deps and runs the server | any recent |
+| [Minecraft Console Client](https://github.com/MCCTeam/Minecraft-Console-Client) (`mcc`) | The bot client each instance wraps | v26.1 |
 
-Configure the target server (defaults: `localhost:25565`):
+`mcc` is a self-contained native binary (no separate .NET runtime needed) and must be
+reachable on `PATH` as `mcc`, or pointed to via `MCC_BINARY` (see below).
 
-```bash
-export MCC_SERVER_HOST=play.example.net
-export MCC_SERVER_PORT=25565
-# optional:
-export MCC_BINARY=mcc            # path to the mcc executable
-export MCC_BASE_MCP_PORT=33334   # first MCP port to allocate
-```
+## Installation
+
+1. **Install `uv`** (skip if already installed):
+
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+
+2. **Install Minecraft Console Client v26.1.** Download the build for your platform
+   from the [releases page](https://github.com/MCCTeam/Minecraft-Console-Client/releases),
+   then make it executable and put it on `PATH` as `mcc`:
+
+   ```bash
+   chmod +x MinecraftClient
+   sudo mv MinecraftClient /usr/local/bin/mcc
+   ```
+
+   (If you'd rather not move it onto `PATH`, leave it where it is and set `MCC_BINARY`
+   to its full path in the next step instead.)
+
+3. **Clone this repo and install Python dependencies:**
+
+   ```bash
+   git clone https://github.com/italoseara/mcc-fleet.git
+   cd mcc-fleet
+   uv sync
+   ```
+
+4. **Configure the target server** (defaults: `localhost:25565`):
+
+   ```bash
+   export MCC_SERVER_HOST=play.example.net
+   export MCC_SERVER_PORT=25565
+   # optional:
+   export MCC_BINARY=mcc            # path to the mcc executable, if not on PATH
+   export MCC_BASE_MCP_PORT=33334   # first MCP port to allocate
+   ```
+
+5. **Sanity check** — the wrapper should start without errors:
+
+   ```bash
+   uv run mcc-wrapper
+   ```
+
+   It should print a FastMCP startup banner and then sit waiting for MCP messages
+   on stdio; `Ctrl+C` to exit. This confirms `uv sync` and the `mcc` binary are
+   both set up correctly.
 
 ## Register with Claude Code
 
