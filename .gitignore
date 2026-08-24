@@ -3,6 +3,7 @@
 
 # MCC auto-generates this in the cwd on first run if no ini path is given
 /MinecraftClient.ini
+/MinecraftClient.backup.ini
 
 # Python / uv
 .venv/
