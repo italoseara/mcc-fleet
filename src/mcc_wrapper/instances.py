@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import signal
 import time
 from dataclasses import dataclass, field
@@ -11,6 +12,11 @@ from pathlib import Path
 import httpx
 
 from . import config
+
+
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+_DIALOG_START = re.compile(r"Dialog #\d+")
+_TEXT_INPUT = re.compile(r"^\s+(\w+) \(Text\)")
 
 
 @dataclass
@@ -25,6 +31,7 @@ class BotInstance:
     status: str = "starting"  # starting | ready | failed | stopped
     started_at: float = field(default_factory=time.time)
     error: str | None = None
+    dialog_task: asyncio.Task | None = None
 
     @property
     def running(self) -> bool:
@@ -85,7 +92,9 @@ class InstanceManager:
                 config.MCC_BINARY,
                 str(ini_path),
                 cwd=str(workdir),
-                stdin=asyncio.subprocess.DEVNULL,
+                # A pipe, not DEVNULL: the login dialog is answered by typing MCC's own
+                # /dialog commands, before the MCP endpoint exists.
+                stdin=asyncio.subprocess.PIPE,
                 stdout=log_file,
                 stderr=asyncio.subprocess.STDOUT,
             )
@@ -98,8 +107,50 @@ class InstanceManager:
                 host=host,
                 port=port,
             )
+            bot.dialog_task = asyncio.create_task(self._answer_login_dialogs(bot))
             self._bots[nick] = bot
             return bot
+
+    async def _answer_login_dialogs(self, bot: BotInstance) -> None:
+        """Fill and submit every login dialog the server shows while the bot is connecting.
+
+        The network's Auth plugin opens a dialog before the player reaches a server: a register
+        form for a new account (password + confirm), a login form afterwards (password). MCC only
+        prints it, and the bot's MCP endpoint does not exist yet, so the answer goes in through
+        MCC's console. Every text input gets the same password, then the first action is clicked,
+        which is "Registrar" / "Entrar" on those forms.
+        """
+        offset = 0
+        pending: list[str] | None = None
+        while bot.running and bot.status != "stopped":
+            await asyncio.sleep(0.5)
+            try:
+                with bot.log_path.open("r", encoding="utf-8", errors="replace") as log:
+                    log.seek(offset)
+                    chunk = log.read()
+                    offset = log.tell()
+            except OSError:
+                continue
+            for raw in chunk.splitlines():
+                line = _ANSI.sub("", raw)
+                if _DIALOG_START.search(line):
+                    pending = []
+                elif pending is not None:
+                    match = _TEXT_INPUT.match(line)
+                    if match:
+                        pending.append(match.group(1))
+                    elif line.startswith("Use /dialog help"):
+                        await self._submit_dialog(bot, pending)
+                        pending = None
+
+    async def _submit_dialog(self, bot: BotInstance, inputs: list[str]) -> None:
+        if bot.proc.stdin is None:
+            return
+        commands = [f"/dialog input {name} {config.BOT_PASSWORD}" for name in inputs]
+        commands.append("/dialog click 1")
+        for command in commands:
+            bot.proc.stdin.write((command + "\n").encode())
+        await bot.proc.stdin.drain()
 
     async def wait_for_ready(self, bot: BotInstance, timeout: float = 60.0) -> BotInstance:
         """Poll the bot's MCP endpoint until it answers, or until timeout/crash."""
@@ -154,6 +205,8 @@ class InstanceManager:
         bot = self._bots.get(nick)
         if bot is None:
             return False
+        if bot.dialog_task is not None:
+            bot.dialog_task.cancel()
         if bot.running:
             try:
                 bot.proc.send_signal(signal.SIGTERM)

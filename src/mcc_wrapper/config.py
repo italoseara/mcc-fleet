@@ -19,6 +19,9 @@ MCC_BINARY = os.environ.get("MCC_BINARY", "mcc")
 DEFAULT_HOST = os.environ.get("MCC_SERVER_HOST", "localhost")
 DEFAULT_PORT = int(os.environ.get("MCC_SERVER_PORT", "25565"))
 
+# Password the bots register and log in with on the network's Auth plugin. Test accounts only.
+BOT_PASSWORD = os.environ.get("MCC_BOT_PASSWORD", "mccbot-local-1")
+
 # MCP HTTP listener config. 33333 is left free for manual MCC use.
 BIND_HOST = "127.0.0.1"
 BASE_MCP_PORT = int(os.environ.get("MCC_BASE_MCP_PORT", "33334"))
