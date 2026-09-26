@@ -20,19 +20,34 @@ Claude -- stdio --> mcc-fleet (this wrapper) -- HTTP /mcp --> mcc (Bot1)
                                              ...
 ```
 
-Each bot's MCC config is rendered from `mcc-template.ini` into `runtime/<nick>/MinecraftClient.ini`.
-MCC's embedded MCP endpoint only comes up *after* the bot joins the world, so `spawn_bot`
-polls it until ready.
+Each bot's MCC config is rendered from `mcc-template.ini` (or `MCC_TEMPLATE`) into
+`runtime/<nick>/MinecraftClient.ini` (or under `MCC_RUNTIME_DIR`). MCC's embedded MCP endpoint only
+comes up *after* the bot joins the world, so `spawn_bot` polls it until ready.
 
 ## Tools exposed to the client
 
 | Tool | Purpose |
 |------|---------|
-| `spawn_bot(nick, host?, port?, timeout?)` | Start a bot, wait until ready, return its tools |
+| `spawn_bot(nick, host?, port?, version?, wait?, timeout?)` | Start a bot; by default wait until ready and return its tools |
+| `wait_bot(nick, timeout?)` | Wait until a spawned bot is ready, return its tools |
 | `list_bots()` | Status, MCP port, pid, uptime of all bots |
 | `list_bot_tools(nick)` | Discover a bot's in-game tools |
 | `bot_call(nick, tool, arguments)` | Invoke one of a bot's in-game tools |
+| `bot_console(nick, command)` | Type one line into the bot's MCC console (works before it is ready) |
+| `bot_log(nick, lines?, strip_ansi?)` | Tail the bot's MCC output |
 | `stop_bot(nick)` / `stop_all()` | Disconnect/terminate bot(s) |
+
+### Servers that gate the join
+
+Login plugins (AuthMe-style `/register` / `/login`, or a register/login dialog) hold the bot
+before it reaches the world, so its in-game tools don't exist yet. Clear the gate by hand:
+
+1. `spawn_bot("Bot1", wait=False)` — returns right after launch.
+2. `bot_log("Bot1")` — see what the server asks for.
+3. `bot_console("Bot1", "/register pass pass")`, or for a dialog
+   `bot_console("Bot1", "/dialog input password pass")` then `bot_console("Bot1", "/dialog click 1")`.
+   One line per call.
+4. `wait_bot("Bot1")` — returns `ready` and the bot's tools.
 
 ## Dependencies
 
@@ -83,10 +98,22 @@ reachable on `PATH` as `mcc`, or pointed to via `MCC_BINARY` (see below).
    export MCC_BASE_MCP_PORT=33334   # first MCP port to allocate
    ```
 
+   All settings:
+
+   | Variable | Default | Purpose |
+   |---|---|---|
+   | `MCC_SERVER_HOST` | `localhost` | Default server host (`spawn_bot` can override) |
+   | `MCC_SERVER_PORT` | `25565` | Default server port (`spawn_bot` can override) |
+   | `MCC_MC_VERSION` | `auto` | Minecraft version MCC speaks; pin e.g. `1.21.4` if auto-detect fails (`spawn_bot(version=...)` overrides) |
+   | `MCC_BINARY` | `mcc` | Path to the MCC executable |
+   | `MCC_BASE_MCP_PORT` | `33334` | First local port handed to a bot's MCP endpoint |
+   | `MCC_TEMPLATE` | `./mcc-template.ini` | Per-bot ini template. Placeholders: `__NICK__`, `__HOST__`, `__PORT__`, `__MCP_PORT__`, `__MC_VERSION__`; keep the `[ChatBot.McpServer]` block |
+   | `MCC_RUNTIME_DIR` | `./runtime` | Where each bot's workdir, ini and `mcc.log` go |
+
 5. **Sanity check** — the wrapper should start without errors:
 
    ```bash
-   uv run mcc-wrapper
+   uv run mcc-fleet
    ```
 
    It should print a FastMCP startup banner and then sit waiting for MCP messages
@@ -98,7 +125,7 @@ reachable on `PATH` as `mcc`, or pointed to via `MCC_BINARY` (see below).
 ```bash
 claude mcp add mcc-fleet \
   -e MCC_SERVER_HOST=play.example.net -e MCC_SERVER_PORT=25565 \
-  -- uv run --directory /path/to/mcc-fleet mcc-wrapper
+  -- uv run --directory /path/to/mcc-fleet mcc-fleet
 ```
 
 Then ask Claude to `spawn_bot("Bot1")`, `bot_call("Bot1", ...)`, etc.
@@ -107,3 +134,4 @@ Then ask Claude to `spawn_bot("Bot1")`, `bot_call("Bot1", ...)`, etc.
 
 - The server **must** be in offline-mode for nick-only login.
 - On shutdown the wrapper kills all child `mcc` processes (`stop_all`).
+- `mcc-wrapper` still works as the command name, for registrations made before the rename.

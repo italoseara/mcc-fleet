@@ -1,4 +1,4 @@
-"""Paths, port allocation, and per-bot ini rendering for the MCC wrapper."""
+"""Paths, port allocation, and per-bot ini rendering for mcc-fleet."""
 
 from __future__ import annotations
 
@@ -7,10 +7,11 @@ import re
 import socket
 from pathlib import Path
 
-# Project root = two levels up from this file (src/mcc_wrapper/config.py -> project/).
+# Project root = two levels up from this file (src/mcc_fleet/config.py -> project/).
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-TEMPLATE_PATH = PROJECT_ROOT / "mcc-template.ini"
-RUNTIME_DIR = PROJECT_ROOT / "runtime"
+# Per-bot ini template and the directory holding each bot's workdir, ini and log.
+TEMPLATE_PATH = Path(os.environ.get("MCC_TEMPLATE", PROJECT_ROOT / "mcc-template.ini"))
+RUNTIME_DIR = Path(os.environ.get("MCC_RUNTIME_DIR", PROJECT_ROOT / "runtime"))
 
 # Path to the mcc executable (overridable via env for non-standard installs).
 MCC_BINARY = os.environ.get("MCC_BINARY", "mcc")
@@ -19,8 +20,8 @@ MCC_BINARY = os.environ.get("MCC_BINARY", "mcc")
 DEFAULT_HOST = os.environ.get("MCC_SERVER_HOST", "localhost")
 DEFAULT_PORT = int(os.environ.get("MCC_SERVER_PORT", "25565"))
 
-# Password the bots register and log in with on the network's Auth plugin. Test accounts only.
-BOT_PASSWORD = os.environ.get("MCC_BOT_PASSWORD", "mccbot-local-1")
+# Protocol version MCC speaks: "auto" asks the server, "1.X.X" pins it. Override per-spawn or via env.
+DEFAULT_MC_VERSION = os.environ.get("MCC_MC_VERSION", "auto")
 
 # MCP HTTP listener config. 33333 is left free for manual MCC use.
 BIND_HOST = "127.0.0.1"
@@ -66,7 +67,7 @@ def mcp_url(mcp_port: int) -> str:
     return f"http://{BIND_HOST}:{mcp_port}{MCP_ROUTE}"
 
 
-def render_ini(nick: str, host: str, port: int, mcp_port: int) -> Path:
+def render_ini(nick: str, host: str, port: int, mcp_port: int, mc_version: str) -> Path:
     """Render the per-bot ini from the template and return its path."""
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
     rendered = (
@@ -74,6 +75,7 @@ def render_ini(nick: str, host: str, port: int, mcp_port: int) -> Path:
         .replace("__HOST__", host)
         .replace("__PORT__", str(port))
         .replace("__MCP_PORT__", str(mcp_port))
+        .replace("__MC_VERSION__", mc_version)
     )
     workdir = bot_workdir(nick)
     workdir.mkdir(parents=True, exist_ok=True)

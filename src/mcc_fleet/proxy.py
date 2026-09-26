@@ -23,13 +23,11 @@ class BotProxy:
         self._manager = manager
 
     def _client(self, nick: str) -> Client:
-        bot = self._manager.get(nick)
-        if bot is None:
-            raise ValueError(f"Unknown bot {nick!r}. Spawn it first with spawn_bot.")
+        bot = self._manager.require(nick)
         if bot.status != "ready":
             raise ValueError(
                 f"Bot {nick!r} is not ready (status={bot.status!r}). "
-                "Wait for spawn_bot to report 'ready'."
+                "Use wait_bot until it reports 'ready'."
             )
         return Client(StreamableHttpTransport(url=config.mcp_url(bot.mcp_port)))
 
